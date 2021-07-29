@@ -1,5 +1,6 @@
 #include <eosio.system/eosio.system.hpp>
 #include <eosio.token/eosio.token.hpp>
+#include <eosio.vote/eosio.vote.hpp>
 
 #include <eosio/crypto.hpp>
 #include <eosio/dispatcher.hpp>
@@ -10,6 +11,7 @@ namespace eosiosystem {
 
    using eosio::current_time_point;
    using eosio::token;
+   using eosio::vote;
 
    double get_continuous_rate(int64_t annual_rate) {
       return std::log1p(double(annual_rate)/double(100*inflation_precision));
@@ -373,7 +375,7 @@ namespace eosiosystem {
       }
    }
 
-   void system_contract::init( unsigned_int version, const symbol& core ) {
+   void system_contract::init( unsigned_int version, const symbol& core, const symbol& vote ) {
       require_auth( get_self() );
       check( version.value == 0, "unsupported version for init action" );
 
@@ -393,8 +395,14 @@ namespace eosiosystem {
          m.quote.balance.symbol = core;
       });
 
+      _gstate.activate_time = eosio::current_time_point();
+
       token::open_action open_act{ token_account, { {get_self(), active_permission} } };
       open_act.send( rex_account, core, get_self() );
+
+      auto vote_token_supply   = eosio::vote::get_supply(vote_account, vote.code() );
+      check( vote_token_supply.symbol == vote, "specified vote symbol does not exist (precision mismatch)" );
+      check( vote_token_supply.amount > 0, "vote token supply must be greater than 0" );      
    }
 
 } /// eosio.system

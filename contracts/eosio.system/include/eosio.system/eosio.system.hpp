@@ -133,6 +133,8 @@ namespace eosiosystem {
       int64_t              total_ram_stake = 0;
 
       block_timestamp      last_producer_schedule_update;
+      time_point           activate_time;
+      int64_t              reward_debt = 0;
       time_point           last_pervote_bucket_fill;
       int64_t              pervote_bucket = 0;
       int64_t              perblock_bucket = 0;
@@ -148,7 +150,7 @@ namespace eosiosystem {
                                 (max_ram_size)(total_ram_bytes_reserved)(total_ram_stake)
                                 (last_producer_schedule_update)(last_pervote_bucket_fill)
                                 (pervote_bucket)(perblock_bucket)(total_unpaid_blocks)(total_activated_stake)(thresh_activated_stake_time)
-                                (last_producer_schedule_size)(total_producer_vote_weight)(last_name_close) )
+                                (last_producer_schedule_size)(total_producer_vote_weight)(last_name_close)(activate_time)(reward_debt) )
    };
 
    // Defines new global state parameters added after version 1.0
@@ -177,11 +179,13 @@ namespace eosiosystem {
    // Defines new global state parameters to store inflation rate and distribution
    struct [[eosio::table("global4"), eosio::contract("eosio.system")]] eosio_global_state4 {
       eosio_global_state4() { }
+      bool     vote_auction_started = false;
+
       double   continuous_rate;
       int64_t  inflation_pay_factor;
       int64_t  votepay_factor;
 
-      EOSLIB_SERIALIZE( eosio_global_state4, (continuous_rate)(inflation_pay_factor)(votepay_factor) )
+      EOSLIB_SERIALIZE( eosio_global_state4, (vote_auction_started)(continuous_rate)(inflation_pay_factor)(votepay_factor) )
    };
 
    inline eosio::block_signing_authority convert_to_block_signing_authority( const eosio::public_key& producer_key ) {
@@ -691,6 +695,7 @@ namespace eosiosystem {
          static constexpr eosio::name rex_account{"eosio.rex"_n};
          static constexpr eosio::name reserv_account{"eosio.reserv"_n};
          static constexpr eosio::name null_account{"eosio.null"_n};
+         static constexpr eosio::name vote_account{"eosio.vote"_n};
          static constexpr symbol ramcore_symbol = symbol(symbol_code("RAMCORE"), 4);
          static constexpr symbol ram_symbol     = symbol(symbol_code("RAM"), 0);
          static constexpr symbol rex_symbol     = symbol(symbol_code("REX"), 4);
@@ -719,7 +724,7 @@ namespace eosiosystem {
           * @param core - the system symbol.
           */
          [[eosio::action]]
-         void init( unsigned_int version, const symbol& core );
+         void init( unsigned_int version, const symbol& core, const symbol& vote );
 
          /**
           * On block action. This special action is triggered when a block is applied by the given producer
@@ -1226,6 +1231,9 @@ namespace eosiosystem {
          [[eosio::action]]
          void claimrewards( const name& owner );
 
+         [[eosio::action]]
+         void claimowner();
+
          /**
           * Set privilege status for an account. Allows to set privilege status for an account (turn it on/off).
           * @param account - the account to set the privileged status for.
@@ -1328,6 +1336,12 @@ namespace eosiosystem {
          [[eosio::action]]
          void powerup( const name& payer, const name& receiver, uint32_t days, int64_t net_frac, int64_t cpu_frac, const asset& max_payment );
 
+         [[eosio::action]]
+         void startauction();
+
+         [[eosio::action]]
+         void auctstatus();
+
          using init_action = eosio::action_wrapper<"init"_n, &system_contract::init>;
          using setacctram_action = eosio::action_wrapper<"setacctram"_n, &system_contract::setacctram>;
          using setacctnet_action = eosio::action_wrapper<"setacctnet"_n, &system_contract::setacctnet>;
@@ -1366,6 +1380,7 @@ namespace eosiosystem {
          using voteproducer_action = eosio::action_wrapper<"voteproducer"_n, &system_contract::voteproducer>;
          using regproxy_action = eosio::action_wrapper<"regproxy"_n, &system_contract::regproxy>;
          using claimrewards_action = eosio::action_wrapper<"claimrewards"_n, &system_contract::claimrewards>;
+         using claimowner_action = eosio::action_wrapper<"claimowner"_n, &system_contract::claimowner>;
          using rmvproducer_action = eosio::action_wrapper<"rmvproducer"_n, &system_contract::rmvproducer>;
          using updtrevision_action = eosio::action_wrapper<"updtrevision"_n, &system_contract::updtrevision>;
          using bidname_action = eosio::action_wrapper<"bidname"_n, &system_contract::bidname>;
@@ -1377,6 +1392,8 @@ namespace eosiosystem {
          using cfgpowerup_action = eosio::action_wrapper<"cfgpowerup"_n, &system_contract::cfgpowerup>;
          using powerupexec_action = eosio::action_wrapper<"powerupexec"_n, &system_contract::powerupexec>;
          using powerup_action = eosio::action_wrapper<"powerup"_n, &system_contract::powerup>;
+         using startauction_action = eosio::action_wrapper<"startauction"_n, &system_contract::startauction>;
+         using auctstatus_action = eosio::action_wrapper<"auctstatus"_n, &system_contract::auctstatus>;
 
       private:
          // Implementation details:

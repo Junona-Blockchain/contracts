@@ -65,6 +65,23 @@ namespace eosiosystem {
       }
    }
 
+   void system_contract::claimowner() {
+      const int64_t reward_per_millisecond = (1000000000 / 3) / (seconds_per_year * 1);
+      const auto ct = current_time_point();
+      const asset token_supply   = token::get_supply(token_account, core_symbol().code() );
+      const auto since_start = (ct - _gstate.activate_time).count();
+      
+      int64_t total_millisecond = since_start / 1000000;
+      int64_t reward = reward_per_millisecond * total_millisecond;
+      int64_t user_reward = (reward - _gstate.reward_debt) * 10000;
+      _gstate.reward_debt = reward;
+
+      token::transfer_action transfer_act{ token_account, { {get_self(), active_permission} } };
+      token::issue_action issue_act{ token_account, { {get_self(), active_permission} } };
+      issue_act.send( get_self(), asset(user_reward, core_symbol()), "Issue tokens for owner reward" );
+      transfer_act.send( get_self(), saving_account, asset(user_reward, core_symbol()), "Owner reward" );
+   }
+
    void system_contract::claimrewards( const name& owner ) {
       require_auth( owner );
 
